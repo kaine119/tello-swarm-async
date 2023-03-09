@@ -3,6 +3,7 @@ from asyncio import AbstractEventLoop, Future, transports
 from collections import deque
 import functools
 from typing import Any, Dict, List
+import time
 
 
 class TelloUnit:
@@ -10,8 +11,10 @@ class TelloUnit:
         self.ip = ip
         self.task_list = task_list
         self.on_msg_received: Future | None = None
+        self.on_tof_received: Future | None = None
         self.started = False
         self.detected_marker: int | None = None
+        self.front_tof = 0
 
 
 class TelloControlProtocol(asyncio.DatagramProtocol):
@@ -30,6 +33,7 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
         # An internal dictionary mapping IP addresses to the `on_msg_received` callbacks for each
         # TelloUnit sent here.
         self.on_message_received_for = {}
+        self.on_tof_received_for = {}
 
     def send_command(self, command: str, tello: TelloUnit):
         """
@@ -40,7 +44,11 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
         """
 
         if self.transport is not None:
-            self.on_message_received_for[tello.ip] = tello.on_msg_received
+            if command == 'EXT tof?':
+                self.on_tof_received_for[tello.ip] = tello.on_tof_received
+            else:
+                self.on_message_received_for[tello.ip] = tello.on_msg_received
+            print(f"[TelloControlProtocol] Sending {command} to {tello.ip}")
             self.transport.sendto(command.encode('utf-8'), (tello.ip, self.CONTROL_PORT))
         else:
             raise RuntimeError("UDP transport hasn't been initialized yet")
@@ -54,7 +62,10 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
 
         # Lookup the future for the tello that sent this packet,
         # then fulfil the future.
-        self.on_message_received_for[addr[0]].set_result(data)
+        if data[0:4] == b'tof ':
+            self.on_tof_received_for[addr[0]].set_result(data)
+        else:
+            self.on_message_received_for[addr[0]].set_result(data)
 
     def error_received(self, exc: Exception) -> None:
         super().error_received(exc)
@@ -79,6 +90,8 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
         super().datagram_received(data, addr)
+        if addr[0] not in self.tello_by_ip.keys():
+            return
         mid = data.decode('utf-8').split(';')[0].split(':')[1]
         self.tello_by_ip[addr[0]].detected_marker = int(mid) if int(mid) > 0 else None
 
@@ -110,6 +123,13 @@ class SwarmManager:
                 functools.partial(self.msg_received_callback, tello)
             )
 
+            tello.on_tof_received = self.loop.create_future()
+            # A bit annoying to do this, but we can't really await multiple async calls
+            # and respond to each call independently.
+            tello.on_tof_received.add_done_callback(
+                functools.partial(self.tof_received_callback, tello)
+            )
+
     async def start_all_drones(self):
         """
         Sends `command` to all drones, to put them in SDK mode.
@@ -125,8 +145,8 @@ class SwarmManager:
         )
 
         for tello in self.tellos:
-            if tello.on_msg_received is not None:
-                self.control_protocol.send_command("command", tello)
+            self.control_protocol.send_command("command", tello)
+            self.control_protocol.send_command("EXT tof?", tello)
 
     def msg_received_callback(self, tello: TelloUnit, received_future: Future):
         """
@@ -149,34 +169,65 @@ class SwarmManager:
         print(f"[SwarmManager] Received {data} from {tello.ip}")
         if data in [b'ok', b'led ok', b'mled ok']:
             print(f"[SwarmManager] Received ok from drone {tello.ip}")
-            if tello.started:
-                tello.task_list.pop(0)
-            else:
-                tello.started = True
-            print(f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
-            if len(tello.task_list) != 0:
-                next_task = tello.task_list[0]
-                print(f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
-                tello.on_msg_received = self.loop.create_future()
-                tello.on_msg_received.add_done_callback(
-                    functools.partial(self.msg_received_callback, tello)
-                )
-                self.control_protocol.send_command(next_task, tello)
-            else:
-                # We're done for this drone.
-                print(f"[SwarmManager] Tasking complete for drone {tello.ip}")
+        if tello.started:
+            tello.task_list.pop(0)
+        else:
+            tello.started = True
+        print(f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
+        if len(tello.task_list) != 0:
+            next_task = tello.task_list[0]
+            print(f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
+            tello.on_msg_received = self.loop.create_future()
+            tello.on_msg_received.add_done_callback(
+                functools.partial(self.msg_received_callback, tello)
+            )
+            self.control_protocol.send_command(next_task, tello)
+        else:
+            # We're done for this drone.
+            print(f"[SwarmManager] Tasking complete for drone {tello.ip}")
 
-                # If we're done for all drones, close the socket.
-                if (all(len(tello.task_list) == 0 for tello in self.tellos)):
-                    self.control_transport.close()
+            # If we're done for all drones, close the socket.
+            if (all(len(tello.task_list) == 0 for tello in self.tellos)):
+                self.control_transport.close()
+
+    def tof_received_callback(self, tello: TelloUnit, received_future: Future):
+        """
+        Handler for when we receive an acknowledgement packet from the Tello unit.
+
+        Checks if the tasking for that particular unit is done; if not, it will send the next
+        command out. If all units managed by the `SwarmHandler` have completed their tasking, the
+        transport will be closed, fulfilling `self.on_con_lost`.
+
+        To be used as a partial function call when registering callbacks:
+
+        ```
+        future.add_done_callback(functools.partial(self.handle_ack, tello))
+        ```
+
+        :param tello: The TelloUnit this handler was registered to.
+        :param received_future: To be filled in by `add_done_callback`.
+        """
+        data = received_future.result()
+        tello.front_tof = int(data.decode('utf-8')[4:])
+        if tello.front_tof < 500:
+            self.control_protocol.send_command('land', tello)
+            if tello.on_msg_received is not None:
+                tello.on_msg_received.remove_done_callback(functools.partial(self.msg_received_callback, tello))
+        else:
+            tello.on_tof_received = self.loop.create_future()
+            tello.on_tof_received.add_done_callback(
+                functools.partial(self.tof_received_callback, tello)
+            )
+            time.sleep(0.5)
+            self.control_protocol.send_command('EXT tof?', tello)
 
 
 async def main():
     loop = asyncio.get_running_loop()
 
     tasks = {
-        "192.168.50.51": ['takeoff', 'EXT led 255 0 0', 'land'],
-        "192.168.50.52": ['takeoff', 'EXT led 0 255 0', 'land']
+        "192.168.50.51": ['takeoff', 'EXT led 0 255 0', "go 150 0 50 30 m1","go 150 0 50 30 m1" 'land'],
+        # "192.168.50.52": ['takeoff', 'EXT led 0 255 0', "forward 250", 'land']
     }
 
     manager = SwarmManager(loop, tasks)
