@@ -2,15 +2,16 @@ import asyncio
 from asyncio import AbstractEventLoop, Future, transports
 from collections import deque
 import functools
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
 class TelloUnit:
-    def __init__(self, ip: str, task_list: List[str]) -> None:
+    def __init__(self, ip: str) -> None:
         self.ip = ip
-        self.task_list = task_list
         self.on_msg_received: Future | None = None
         self.started = False
+        self.labelled = False
+        self.finished = False
         self.detected_marker: int | None = None
 
 
@@ -41,6 +42,7 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
 
         if self.transport is not None:
             self.on_message_received_for[tello.ip] = tello.on_msg_received
+            print(f"[TelloControlProtocol] Sending {command} to {tello.ip}")
             self.transport.sendto(command.encode('utf-8'), (tello.ip, self.CONTROL_PORT))
         else:
             raise RuntimeError("UDP transport hasn't been initialized yet")
@@ -82,12 +84,42 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
         mid = data.decode('utf-8').split(';')[0].split(':')[1]
         self.tello_by_ip[addr[0]].detected_marker = int(mid) if int(mid) > 0 else None
 
+    def error_received(self, exc: Exception) -> None:
+        print(exc)
+        return super().error_received(exc)
+
     def connection_lost(self, exc: Exception | None) -> None:
         super().connection_lost(exc)
 
 
+class SwarmStrategy(object):
+    """
+    Provides the next step to be taken by any drone in the swarm.
+    Override `next_task` to provide behaviour for the next step.
+    """
+
+    def next_task(self,
+                  tello: TelloUnit,
+                  last_task_result: str,
+                  tellos: List[TelloUnit]) -> Tuple[bool, str | None]:
+        """
+        Returns whether there is a next task to take, and if so,
+        the next step taken by the drone. This method needs to be
+        implemented.
+
+        If there is no next task to do, i.e. the bool returned is False,
+        the drone will land in place.
+
+        Will be called after the drone sends an acknowledgement packet to us.
+        """
+        raise NotImplementedError
+
+
 class SwarmManager:
-    def __init__(self, loop: AbstractEventLoop, tasks: Dict[str, List[str]]) -> None:
+    def __init__(self,
+                 loop: AbstractEventLoop,
+                 tello_ips: List[str],
+                 strategy: SwarmStrategy) -> None:
         """
         Manages multiple TelloUnits. It keeps track of multiple tasking lists, and sends commands
         to each drone as the drone completes them.
@@ -97,9 +129,11 @@ class SwarmManager:
         """
         self.loop = loop
 
-        self.tellos = [TelloUnit(ip, task_list) for ip, task_list in tasks.items()]
+        self.tellos = [TelloUnit(ip) for ip in tello_ips]
 
         self.on_con_lost = loop.create_future()
+
+        self.strategy = strategy
 
         # Create each TelloUnit's `on_msg_received` future, and register a handler to it.
         for tello in self.tellos:
@@ -125,8 +159,7 @@ class SwarmManager:
         )
 
         for tello in self.tellos:
-            if tello.on_msg_received is not None:
-                self.control_protocol.send_command("command", tello)
+            self.control_protocol.send_command("command", tello)
 
     def msg_received_callback(self, tello: TelloUnit, received_future: Future):
         """
@@ -147,15 +180,34 @@ class SwarmManager:
         """
         data = received_future.result()
         print(f"[SwarmManager] Received {data} from {tello.ip}")
-        if data in [b'ok', b'led ok', b'mled ok']:
+        if data in [b'ok', b'led ok', b'matrix ok']:
             print(f"[SwarmManager] Received ok from drone {tello.ip}")
-            if tello.started:
-                tello.task_list.pop(0)
-            else:
-                tello.started = True
+
             print(f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
-            if len(tello.task_list) != 0:
-                next_task = tello.task_list[0]
+
+            # Get the next task to perform from the strategy.
+            should_continue, next_task = self.strategy.next_task(tello, data, self.tellos)
+
+            if not tello.started:
+                tello.started = True
+                tello.on_msg_received = self.loop.create_future()
+                tello.on_msg_received.add_done_callback(
+                    functools.partial(self.msg_received_callback, tello)
+                )
+                self.control_protocol.send_command('takeoff', tello)
+
+            elif not tello.labelled:
+                tello.labelled = True
+                tello.on_msg_received = self.loop.create_future()
+                tello.on_msg_received.add_done_callback(
+                    functools.partial(self.msg_received_callback, tello)
+                )
+                label = chr(97 + self.tellos.index(tello))
+                self.control_protocol.send_command(f'EXT mled s r {label}', tello)
+
+            elif should_continue:
+                if next_task is None:
+                    raise RuntimeError("No action was provided despite continuing")
                 print(f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
                 tello.on_msg_received = self.loop.create_future()
                 tello.on_msg_received.add_done_callback(
@@ -164,26 +216,14 @@ class SwarmManager:
                 self.control_protocol.send_command(next_task, tello)
             else:
                 # We're done for this drone.
-                print(f"[SwarmManager] Tasking complete for drone {tello.ip}")
+                print(f"[SwarmManager] Tasking complete for drone {tello.ip}, landing")
+                tello.on_msg_received = self.loop.create_future()
+                tello.on_msg_received.add_done_callback(
+                    functools.partial(self.msg_received_callback, tello)
+                )
+                self.control_protocol.send_command('land', tello)
+                tello.finished = True
 
                 # If we're done for all drones, close the socket.
-                if (all(len(tello.task_list) == 0 for tello in self.tellos)):
+                if (all(tello.finished for tello in self.tellos)):
                     self.control_transport.close()
-
-
-async def main():
-    loop = asyncio.get_running_loop()
-
-    tasks = {
-        "192.168.50.51": ['takeoff', 'EXT led 255 0 0', 'land'],
-        "192.168.50.52": ['takeoff', 'EXT led 0 255 0', 'land']
-    }
-
-    manager = SwarmManager(loop, tasks)
-    await manager.start_all_drones()
-
-    await manager.on_con_lost
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
