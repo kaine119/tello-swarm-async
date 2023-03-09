@@ -209,7 +209,7 @@ class SwarmManager:
         """
         data = received_future.result()
         tello.front_tof = int(data.decode('utf-8')[4:])
-        if tello.front_tof < 500:
+        if tello.front_tof < 750:
             self.control_protocol.send_command('land', tello)
             if tello.on_msg_received is not None:
                 tello.on_msg_received.remove_done_callback(functools.partial(self.msg_received_callback, tello))
