@@ -146,8 +146,8 @@ async def main():
     loop = asyncio.get_running_loop()
 
     tasks = {
-        "10.243.178.4": ['takeoff', 'land'],
-        "127.0.0.1": ['takeoff', 'land']
+        "192.168.50.51": ['takeoff', 'EXT led 255 0 0', 'land'],
+        "192.168.50.52": ['takeoff', 'EXT led 0 255 0', 'land']
     }
 
     manager = SwarmManager(loop, tasks)
