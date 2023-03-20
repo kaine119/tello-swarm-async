@@ -56,7 +56,8 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
 
         # Lookup the future for the tello that sent this packet,
         # then fulfil the future.
-        self.on_message_received_for[addr[0]].set_result(data)
+        if not self.on_message_received_for[addr[0]].done():
+            self.on_message_received_for[addr[0]].set_result(data)
 
     def error_received(self, exc: Exception) -> None:
         super().error_received(exc)
@@ -180,7 +181,12 @@ class SwarmManager:
         """
         data = received_future.result()
         print(f"[SwarmManager] Received {data} from {tello.ip}")
-        if data in [b'ok', b'led ok', b'matrix ok']:
+        if b'error' in data:
+            print(f"[SwarmManager] Received error from drone {tello.ip}")
+            should_continue, next_task = False, None
+            # just stop doing anything with this one
+            tello.finished = True
+        elif b'ok' in data:
             print(f"[SwarmManager] Received ok from drone {tello.ip}")
 
             print(f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
@@ -205,7 +211,7 @@ class SwarmManager:
                 label = chr(97 + self.tellos.index(tello))
                 self.control_protocol.send_command(f'EXT mled s r {label}', tello)
 
-            elif should_continue:
+            elif should_continue and not tello.finished:
                 if next_task is None:
                     raise RuntimeError("No action was provided despite continuing")
                 print(f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
