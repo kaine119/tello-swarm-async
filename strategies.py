@@ -7,7 +7,8 @@ class FollowToEndPad(SwarmStrategy):
                  path_pad_no: int,
                  end_pad_no: int,
                  distance_between_pads: int,
-                 base_altitude: int,
+                 flight_level_1: int,
+                 flight_level_2: int,
                  speed: int) -> None:
         """
         Instruct drones in a swarm to follow a path of mission pads, landing when
@@ -22,7 +23,8 @@ class FollowToEndPad(SwarmStrategy):
         self.path_pad_no = path_pad_no
         self.end_pad_no = end_pad_no
         self.distance_between_pads = distance_between_pads
-        self.base_altitude = base_altitude
+        self.flight_level_1 = flight_level_1
+        self.flight_level_2 = flight_level_2
         self.speed = speed
 
     def next_task(self,
@@ -30,7 +32,7 @@ class FollowToEndPad(SwarmStrategy):
                   last_task_result: str,
                   tellos: List[TelloUnit]) -> Tuple[bool, str | None]:
         index = tellos.index(tello)
-        altitude = self.base_altitude + index * 15
+        altitude = self.flight_level_1 if index % 2 == 0 else self.flight_level_2
         if tello.detected_marker != self.end_pad_no:
             return (
                 True,

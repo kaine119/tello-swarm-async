@@ -6,10 +6,13 @@ from tello import SwarmManager
 
 async def main():
     loop = asyncio.get_running_loop()
-    strategy = FollowToEndPad(8, 4, 150, 50, 50)
+    strategy = FollowToEndPad(1, 5, 380, 50, 150, 50)
     ips = [
-        "192.168.50.50",
-        "192.168.50.54"
+        "192.168.50.56", # 109b7a
+        "192.168.50.58", # 10c428
+        "192.168.50.61", # 10b17c
+        "192.168.50.57", # f23b1a
+        "192.168.50.55"  # 9aecdc
     ]
 
     manager = SwarmManager(loop, ips, strategy)
