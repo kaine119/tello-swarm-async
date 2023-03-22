@@ -45,21 +45,23 @@ class FollowToEndPad(SwarmStrategy):
                   tellos: List[TelloUnit]) -> Tuple[bool, str | None]:
         index = tellos.index(tello)
         altitude = self.flight_level_1 if index % 2 == 0 else self.flight_level_2
-        if tello.detected_marker != self.end_pad_no:
-            return (
-                True,
-                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
-            )
-        elif tello.detected_marker is None:
+        if tello.detected_marker is None:
+            print("[FollowToEndPadStrategy] Failed to find marker, attempting to recover")
             # If we haven't seen a pad, try to go forward and see if we can detect one.
             return (
                 True,
                 self.search_for_pad(tello, altitude)
             )
+        elif tello.detected_marker != self.end_pad_no:
+            self.tellos_last_search_tasks[tello] = None
+            return (
+                True,
+                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
+            )
         else:
             return False, None
 
-    def search_for_pad(self, tello: TelloUnit, altitude: int) -> str:
+    def search_for_pad(self, tello: TelloUnit, search_altitude: int) -> str:
         """
         Get the TelloUnit to do a rough grid search around the perimeter to find the pad.
         """
