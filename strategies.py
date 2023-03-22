@@ -27,7 +27,7 @@ class FollowToEndPad(SwarmStrategy):
         self.flight_level_2 = flight_level_2
         self.speed = speed
 
-        self.tellos_last_search_tasks: Dict[TelloUnit, int] = {}
+        self.tellos_last_search_tasks = {}
         """
         The last search task that each TelloUnit seen has performed.
         The overall grid search pattern is:
@@ -65,17 +65,17 @@ class FollowToEndPad(SwarmStrategy):
         """
 
         movement_commands = [
-            f"go 0 -5 {altitude} 5",
-            f"go 5 0 {altitude} 5",
-            f"go 0 5 {altitude} 5",
-            f"go 0 5 {altitude} 5",
-            f"go 5 0 {altitude} 5",
-            f"go 0 -5 {altitude} 5",
+            f"left 50",
+            f"forward 20",
+            f"right 50",
+            f"right 50",
+            f"forward 20",
+            f"left 50",
         ]
 
         if self.tellos_last_search_tasks.get(tello) is None:
-            self.tellos_last_search_tasks[tello] = 0
-            return movement_commands[0]
+            self.tellos_last_search_tasks[tello] = -1
+            return f"go 0 0 {search_altitude} 10"
         else:
             self.tellos_last_search_tasks[tello] += 1
-            return movement_commands[self.tellos_last_search_tasks[tello]]
+            return movement_commands[self.tellos_last_search_tasks[tello] % 6]
