@@ -30,7 +30,7 @@ class FollowToEndPad(SwarmStrategy):
         self.speed = speed
 
         self.pad_finder = find_pad.FindPadTask()
-        self.pad_align = align_pad.AlignPadTask()
+        self.pad_align = align_pad.AlignPadTask(speed, distance_between_pads, path_pad_no, end_pad_no)
 
     def next_task(self,
                   tello: TelloUnit,

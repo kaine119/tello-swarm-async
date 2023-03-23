@@ -2,7 +2,15 @@ from swarm import *
 
 
 class AlignPadTask(SwarmTask):
-    def __init__(self) -> None:
+    def __init__(self,
+                 speed: int,
+                 distance_between_pads: int,
+                 path_pad_no: int,
+                 end_pad_no: int) -> None:
+        self.speed = speed
+        self.distance_between_pads = distance_between_pads
+        self.path_pad_no = path_pad_no
+        self.end_pad_no = end_pad_no
         super().__init__()
 
     def align_yaw(self, tello: TelloUnit) -> Tuple[bool, str]:
@@ -20,10 +28,10 @@ class AlignPadTask(SwarmTask):
         else:
             return (
                 True,
-                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
+                f'go {self.distance_between_pads} 0 {altitude - tello.height} {self.speed} m{self.path_pad_no}'
             )
 
-    def align_end_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str]:
+    def align_end_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str | None]:
         marker_x, marker_y = tello.marker_xy
         if abs(marker_x) <= 10 and abs(marker_y) <= 10:
             print(

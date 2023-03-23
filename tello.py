@@ -15,6 +15,7 @@ class TelloUnit:
         self.detected_marker: int | None = None
         self.marker_xy: Tuple[int, int] | None = None
         self.marker_yaw: int | None = None
+        self.height: int = 0
 
 
 class TelloControlProtocol(asyncio.DatagramProtocol):
@@ -91,6 +92,7 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
         _, y = data_array[2].split(':')
         _, z = data_array[3].split(':')
         _, mpry = data_array[4].split(':')
+        _, height = data_array[14].split(':')
 
         x = int(x)
         y = int(y)
@@ -102,6 +104,7 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
         tello_to_update.detected_marker = int(mid) if int(mid) > 0 else None
         tello_to_update.marker_xy = (x, y) if int(mid) > 0 else None
         tello_to_update.marker_yaw = marker_yaw if int(mid) > 0 else None
+        tello_to_update.height = int(height)
 
     def error_received(self, exc: Exception) -> None:
         print(exc)
