@@ -13,6 +13,8 @@ class TelloUnit:
         self.labelled = False
         self.finished = False
         self.detected_marker: int | None = None
+        self.marker_xy: Tuple[int, int] | None = None
+        self.marker_yaw: int | None = None
 
 
 class TelloControlProtocol(asyncio.DatagramProtocol):
@@ -87,13 +89,20 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
         _, x    = data_array[1].split(':')
         _, y    = data_array[2].split(':')
         _, z    = data_array[3].split(':')
+        _, mpry = data_array[4].split(':')
+
         x = int(x)
         y = int(y)
         z = int(z)
 
+        _, marker_yaw, _ = (int(x) for x in mpry.split(','))
+
         tello_to_update = self.tello_by_ip[addr[0]]
         tello_to_update.detected_marker = int(mid) if int(mid) > 0 else None
         tello_to_update.marker_xy = (x, y) if int(mid) > 0 else None
+        tello_to_update.marker_yaw = marker_yaw if int(mid) > 0 else None
+
+
     def error_received(self, exc: Exception) -> None:
         print(exc)
         return super().error_received(exc)

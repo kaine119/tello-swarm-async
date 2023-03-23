@@ -46,7 +46,6 @@ class FollowToEndPad(SwarmStrategy):
         index = tellos.index(tello)
         altitude = self.flight_level_1 if index % 2 == 0 else self.flight_level_2
         if tello.detected_marker is None:
-            print("[FollowToEndPadStrategy] Failed to find marker, attempting to recover")
             print(f"[FollowToEndPadStrategy] [{tello.ip}] Failed to find marker, attempting to recover")
             # If we haven't seen a pad, try to go forward and see if we can detect one.
             return (
@@ -54,11 +53,27 @@ class FollowToEndPad(SwarmStrategy):
                 self.search_for_pad(tello, altitude)
             )
         elif tello.detected_marker != self.end_pad_no:
+            if tello.marker_yaw is None:
+                print(f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no yaw???")
+                return False, None
             self.tellos_last_search_tasks[tello] = None
-            return (
-                True,
-                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
-            )
+            print(f"[FollowToEndPadStrategy] [{tello.ip}] Current marker_yaw {tello.marker_yaw}")
+            if abs(tello.marker_yaw) >= 10:
+                print(f"[FollowToEndPadStrategy] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
+                # return (
+                #     True,
+                #     f'jump 0 0 {altitude} 10 0 m{self.path_pad_no} m{self.path_pad_no}'
+                # )
+                yaw_command = "cw" if tello.marker_yaw > 0 else "ccw"
+                return (
+                    True,
+                    f'{yaw_command} {abs(tello.marker_yaw)}'
+                )
+            else:
+                return (
+                    True,
+                    f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
+                )
         else:
             if tello.marker_xy is None:
                 print(f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
