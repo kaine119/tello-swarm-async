@@ -82,9 +82,18 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
         super().datagram_received(data, addr)
-        mid = data.decode('utf-8').split(';')[0].split(':')[1]
-        self.tello_by_ip[addr[0]].detected_marker = int(mid) if int(mid) > 0 else None
+        data_array = data.decode('utf-8').split(';')
+        _, mid  = data_array[0].split(':')
+        _, x    = data_array[1].split(':')
+        _, y    = data_array[2].split(':')
+        _, z    = data_array[3].split(':')
+        x = int(x)
+        y = int(y)
+        z = int(z)
 
+        tello_to_update = self.tello_by_ip[addr[0]]
+        tello_to_update.detected_marker = int(mid) if int(mid) > 0 else None
+        tello_to_update.marker_xy = (x, y) if int(mid) > 0 else None
     def error_received(self, exc: Exception) -> None:
         print(exc)
         return super().error_received(exc)

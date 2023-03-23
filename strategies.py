@@ -47,6 +47,7 @@ class FollowToEndPad(SwarmStrategy):
         altitude = self.flight_level_1 if index % 2 == 0 else self.flight_level_2
         if tello.detected_marker is None:
             print("[FollowToEndPadStrategy] Failed to find marker, attempting to recover")
+            print(f"[FollowToEndPadStrategy] [{tello.ip}] Failed to find marker, attempting to recover")
             # If we haven't seen a pad, try to go forward and see if we can detect one.
             return (
                 True,
@@ -59,7 +60,19 @@ class FollowToEndPad(SwarmStrategy):
                 f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
             )
         else:
-            return False, None
+            if tello.marker_xy is None:
+                print(f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
+                return False, None
+            marker_x, marker_y = tello.marker_xy
+            if abs(marker_x) <= 10 and abs(marker_y) <= 10:
+                print(f"[FollowToEndPadStrategy] [{tello.ip}] Successfully aligned to landing pad; current rel coordinates {tello.marker_xy}")
+                return False, None
+            else:
+                print(f"[FollowToEndPadStrategy] [{tello.ip}] Aligning to landing pad; current rel coordinates {tello.marker_xy}")
+                return (
+                    True,
+                    f'go 0 0 {altitude} {self.speed} m{self.end_pad_no}'
+                )
 
     def search_for_pad(self, tello: TelloUnit, search_altitude: int) -> str:
         """
