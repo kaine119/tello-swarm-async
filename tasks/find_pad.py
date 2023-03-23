@@ -16,7 +16,10 @@ class FindPadTask(SwarmTask):
         5: Go left
         """
 
-    def execute(self, tello: TelloUnit, search_altitude: int) -> str:
+    def reset_tasks(self, tello) -> None:
+        self.tellos_last_search_tasks[tello] = None
+
+    def execute(self, tello: TelloUnit, search_altitude: int) -> Tuple[bool, str]:
         """
         Get the TelloUnit to do a rough grid search around the perimeter to find the pad.
         """
@@ -32,7 +35,7 @@ class FindPadTask(SwarmTask):
 
         if self.tellos_last_search_tasks.get(tello) is None:
             self.tellos_last_search_tasks[tello] = -1
-            return f"go 0 0 {search_altitude} 10"
+            return (True, f"go 0 0 {search_altitude} 10")
         else:
             self.tellos_last_search_tasks[tello] += 1
-            return movement_commands[self.tellos_last_search_tasks[tello] % 6]
+            return (True, movement_commands[self.tellos_last_search_tasks[tello] % 6])

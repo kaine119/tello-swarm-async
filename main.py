@@ -1,7 +1,7 @@
 import asyncio
 from strategies import *
 
-from tello import SwarmManager
+from swarm import SwarmManager
 
 
 async def main():

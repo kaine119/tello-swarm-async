@@ -1,3 +1,4 @@
 __all__ = [
-    "find_pad"
+    "find_pad",
+    "align_pad"
 ]

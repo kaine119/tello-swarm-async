@@ -158,5 +158,9 @@ class SwarmTask(object):
     Generic tasks for all strategies
     """
 
-    def execute(self, tello: TelloUnit):
+    def execute(self, tello: TelloUnit) -> Tuple[bool, str]:
+        """Abstract execution function
+
+        :param tello: The TelloUnit to execute the task on.
+        """
         raise NotImplementedError
