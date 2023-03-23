@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
-from tello import SwarmStrategy, TelloUnit
-from tasks import find_pad
+from tello import TelloUnit
+from tasks import *
+from swarm import *
 
 
 class FollowToEndPad(SwarmStrategy):
@@ -29,6 +30,7 @@ class FollowToEndPad(SwarmStrategy):
         self.speed = speed
 
         self.pad_finder = find_pad.FindPadTask()
+        self.pad_align = align_pad.AlignPadTask()
 
     def next_task(self,
                   tello: TelloUnit,
@@ -40,49 +42,19 @@ class FollowToEndPad(SwarmStrategy):
             print(
                 f"[FollowToEndPadStrategy] [{tello.ip}] Failed to find marker, attempting to recover")
             # If we haven't seen a pad, try to go forward and see if we can detect one.
-            return (
-                True,
-                self.pad_finder.execute(tello, altitude)
-            )
+            return self.pad_finder.execute(tello, altitude)
         elif tello.detected_marker != self.end_pad_no:
             if tello.marker_yaw is None:
                 print(
                     f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no yaw???")
                 return False, None
-            self.tellos_last_search_tasks[tello] = None
+            self.pad_finder.reset_tasks(tello)
             print(
                 f"[FollowToEndPadStrategy] [{tello.ip}] Current marker_yaw {tello.marker_yaw}")
-            if abs(tello.marker_yaw) >= 10:
-                print(
-                    f"[FollowToEndPadStrategy] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
-                # return (
-                #     True,
-                #     f'jump 0 0 {altitude} 10 0 m{self.path_pad_no} m{self.path_pad_no}'
-                # )
-                yaw_command = "cw" if tello.marker_yaw > 0 else "ccw"
-                return (
-                    True,
-                    f'{yaw_command} {abs(tello.marker_yaw)}'
-                )
-            else:
-                return (
-                    True,
-                    f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
-                )
+            return self.pad_align.align_pad(tello, altitude)
         else:
             if tello.marker_xy is None:
                 print(
                     f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
                 return False, None
-            marker_x, marker_y = tello.marker_xy
-            if abs(marker_x) <= 10 and abs(marker_y) <= 10:
-                print(
-                    f"[FollowToEndPadStrategy] [{tello.ip}] Successfully aligned to landing pad; current rel coordinates {tello.marker_xy}")
-                return False, None
-            else:
-                print(
-                    f"[FollowToEndPadStrategy] [{tello.ip}] Aligning to landing pad; current rel coordinates {tello.marker_xy}")
-                return (
-                    True,
-                    f'go 0 0 {altitude} {self.speed} m{self.end_pad_no}'
-                )
+            return self.pad_align.align_end_pad(tello, altitude)
