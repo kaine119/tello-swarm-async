@@ -28,7 +28,7 @@ class AlignPadTask(SwarmTask):
         else:
             return (
                 True,
-                f'go {self.distance_between_pads} 0 {altitude - tello.height} {self.speed} m{self.path_pad_no}'
+                f'go {self.distance_between_pads} 0 {tello.height} {self.speed} m{self.path_pad_no}'
             )
 
     def align_end_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str | None]:

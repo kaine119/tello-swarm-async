@@ -14,5 +14,5 @@ def arp_scan():
     clients = {}
 
     for sent, received in result:
-        clients[received.hwsrc] = received.psrc
+        clients[received.hwsrc.upper()] = received.psrc
     return clients

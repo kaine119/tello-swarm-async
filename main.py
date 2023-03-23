@@ -22,16 +22,18 @@ def ping_ips():
     clients = arp_scan()
     ips = []
     for mac in macs:
-        if clients[mac] is None:
+        if clients.get(mac) is None:
             print("MAC address not found:", mac)
             ips.append("192.168.51.1")
-        ips.append(clients[mac])
+        else:
+            ips.append(clients[mac])
+    print(ips)
     return ips
 
 
 async def main():
     loop = asyncio.get_running_loop()
-    strategy = follow_to_end.FollowToEndPad(1, 5, 380, 50, 150, 50)
+    strategy = follow_to_end.FollowToEndPad(1, 5, 400, 50, 150, 50)
     ips = ping_ips()
 
     manager = SwarmManager(loop, ips, strategy)

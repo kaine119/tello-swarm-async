@@ -35,7 +35,7 @@ class FindPadTask(SwarmTask):
 
         if self.tellos_last_search_tasks.get(tello) is None:
             self.tellos_last_search_tasks[tello] = -1
-            return (True, f"go 0 0 {search_altitude} 10")
+            return (True, f"go 0 0 {search_altitude - tello.height} 10")
         else:
             self.tellos_last_search_tasks[tello] += 1
             return (True, movement_commands[self.tellos_last_search_tasks[tello] % 6])
