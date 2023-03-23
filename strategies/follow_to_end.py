@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple
 from tello import SwarmStrategy, TelloUnit
+from tasks import find_pad
 
 
 class FollowToEndPad(SwarmStrategy):
@@ -27,17 +28,7 @@ class FollowToEndPad(SwarmStrategy):
         self.flight_level_2 = flight_level_2
         self.speed = speed
 
-        self.tellos_last_search_tasks = {}
-        """
-        The last search task that each TelloUnit seen has performed.
-        The overall grid search pattern is:
-        0: Go left
-        1: Go forward
-        2: Go right
-        3: Go right
-        4: Go forward
-        5: Go left
-        """
+        self.pad_finder = find_pad.FindPadTask()
 
     def next_task(self,
                   tello: TelloUnit,
@@ -46,20 +37,24 @@ class FollowToEndPad(SwarmStrategy):
         index = tellos.index(tello)
         altitude = self.flight_level_1 if index % 2 == 0 else self.flight_level_2
         if tello.detected_marker is None:
-            print(f"[FollowToEndPadStrategy] [{tello.ip}] Failed to find marker, attempting to recover")
+            print(
+                f"[FollowToEndPadStrategy] [{tello.ip}] Failed to find marker, attempting to recover")
             # If we haven't seen a pad, try to go forward and see if we can detect one.
             return (
                 True,
-                self.search_for_pad(tello, altitude)
+                self.pad_finder.execute(tello, altitude)
             )
         elif tello.detected_marker != self.end_pad_no:
             if tello.marker_yaw is None:
-                print(f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no yaw???")
+                print(
+                    f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no yaw???")
                 return False, None
             self.tellos_last_search_tasks[tello] = None
-            print(f"[FollowToEndPadStrategy] [{tello.ip}] Current marker_yaw {tello.marker_yaw}")
+            print(
+                f"[FollowToEndPadStrategy] [{tello.ip}] Current marker_yaw {tello.marker_yaw}")
             if abs(tello.marker_yaw) >= 10:
-                print(f"[FollowToEndPadStrategy] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
+                print(
+                    f"[FollowToEndPadStrategy] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
                 # return (
                 #     True,
                 #     f'jump 0 0 {altitude} 10 0 m{self.path_pad_no} m{self.path_pad_no}'
@@ -76,36 +71,18 @@ class FollowToEndPad(SwarmStrategy):
                 )
         else:
             if tello.marker_xy is None:
-                print(f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
+                print(
+                    f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
                 return False, None
             marker_x, marker_y = tello.marker_xy
             if abs(marker_x) <= 10 and abs(marker_y) <= 10:
-                print(f"[FollowToEndPadStrategy] [{tello.ip}] Successfully aligned to landing pad; current rel coordinates {tello.marker_xy}")
+                print(
+                    f"[FollowToEndPadStrategy] [{tello.ip}] Successfully aligned to landing pad; current rel coordinates {tello.marker_xy}")
                 return False, None
             else:
-                print(f"[FollowToEndPadStrategy] [{tello.ip}] Aligning to landing pad; current rel coordinates {tello.marker_xy}")
+                print(
+                    f"[FollowToEndPadStrategy] [{tello.ip}] Aligning to landing pad; current rel coordinates {tello.marker_xy}")
                 return (
                     True,
                     f'go 0 0 {altitude} {self.speed} m{self.end_pad_no}'
                 )
-
-    def search_for_pad(self, tello: TelloUnit, search_altitude: int) -> str:
-        """
-        Get the TelloUnit to do a rough grid search around the perimeter to find the pad.
-        """
-
-        movement_commands = [
-            f"left 50",
-            f"forward 20",
-            f"right 50",
-            f"right 50",
-            f"forward 20",
-            f"left 50",
-        ]
-
-        if self.tellos_last_search_tasks.get(tello) is None:
-            self.tellos_last_search_tasks[tello] = -1
-            return f"go 0 0 {search_altitude} 10"
-        else:
-            self.tellos_last_search_tasks[tello] += 1
-            return movement_commands[self.tellos_last_search_tasks[tello] % 6]
