@@ -58,6 +58,10 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
         super().datagram_received(data, addr)
 
+        # Idunno what this is, just ignore the packet
+        if b'keepalive' in data:
+            return
+
         # Lookup the future for the tello that sent this packet,
         # then fulfil the future.
         if not self.on_message_received_for[addr[0]].done():
