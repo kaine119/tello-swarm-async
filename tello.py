@@ -2,7 +2,7 @@ import asyncio
 from asyncio import AbstractEventLoop, Future, transports
 from collections import deque
 import functools
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 
 class TelloUnit:
@@ -10,6 +10,7 @@ class TelloUnit:
         self.ip = ip
         self.on_msg_received: Future | None = None
         self.started = False
+        self.camera_activated = False
         self.labelled = False
         self.finished = False
         self.detected_marker: int | None = None
@@ -27,6 +28,7 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
         unit, waiting for each unit to reply with a `b"ok"`.
 
         :param on_conn_lost: A `Future` that gets fulfilled if the connection is closed.
+        :param tello_update_callback: A method that gets called when a Tello is updated.
         """
         self.transport = None
         self.on_conn_lost = on_conn_lost
@@ -80,9 +82,10 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
 class TelloStatusProtocol(asyncio.DatagramProtocol):
     STATUS_PORT = 8890
 
-    def __init__(self, tellos: List[TelloUnit]) -> None:
+    def __init__(self, tellos: List[TelloUnit], tello_update_callback: Callable[[TelloUnit], Any]) -> None:
         super().__init__()
         self.tello_by_ip = {tello.ip: tello for tello in tellos}
+        self.tello_update_callback = tello_update_callback
 
     def connection_made(self, transport: transports.DatagramTransport) -> None:
         super().connection_made(transport)
@@ -109,6 +112,8 @@ class TelloStatusProtocol(asyncio.DatagramProtocol):
         tello_to_update.marker_xy = (x, y) if int(mid) > 0 else None
         tello_to_update.marker_yaw = marker_yaw if int(mid) > 0 else None
         tello_to_update.height = int(height)
+
+        self.tello_update_callback(tello_to_update)
 
     def error_received(self, exc: Exception) -> None:
         print(exc)
