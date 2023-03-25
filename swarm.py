@@ -27,6 +27,14 @@ class SwarmStrategy(object):
         """
         raise NotImplementedError
 
+    def on_tello_updated(self, tello: TelloUnit) -> bool:
+        """
+        Called when a Tello unit is updated. Returns if the drone needs to be
+        stopped, for `next_task` to be re-evaluated, e.g. if the drone sees a
+        new mission pad.
+        """
+        raise NotImplementedError
+
 
 class SwarmManager:
     def __init__(self,
@@ -67,12 +75,17 @@ class SwarmManager:
         )
 
         self.status_transport, self.status_protocol = await self.loop.create_datagram_endpoint(
-            lambda: TelloStatusProtocol(self.tellos),
+            lambda: TelloStatusProtocol(self.tellos, self.tello_update_callback),
             local_addr=('0.0.0.0', TelloStatusProtocol.STATUS_PORT)
         )
 
         for tello in self.tellos:
             self.control_protocol.send_command("command", tello)
+
+    def tello_update_callback(self, tello_updated: TelloUnit):
+        need_to_stop = self.strategy.on_tello_updated(tello_updated)
+        if need_to_stop:
+            self.control_protocol.send_command('stop', tello_updated)
 
     def msg_received_callback(self, tello: TelloUnit, received_future: Future):
         """
@@ -115,6 +128,14 @@ class SwarmManager:
                     functools.partial(self.msg_received_callback, tello)
                 )
                 self.control_protocol.send_command('takeoff', tello)
+
+            elif not tello.camera_activated:
+                tello.camera_activated = True
+                tello.on_msg_received = self.loop.create_future()
+                tello.on_msg_received.add_done_callback(
+                    functools.partial(self.msg_received_callback, tello)
+                )
+                self.control_protocol.send_command('mon', tello)
 
             elif not tello.labelled:
                 tello.labelled = True

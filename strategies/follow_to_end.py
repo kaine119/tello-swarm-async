@@ -58,3 +58,9 @@ class FollowToEndPad(SwarmStrategy):
                     f"[FollowToEndPadStrategy] [{tello.ip}] help, drone detected marker but no coordinates???")
                 return False, None
             return self.pad_align.align_end_pad(tello, altitude)
+
+    def on_tello_updated(self, tello: TelloUnit) -> bool:
+        print(tello.detected_marker)
+        if tello.detected_marker == self.end_pad_no:
+            return True
+        return False
