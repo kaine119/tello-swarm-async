@@ -120,10 +120,6 @@ class SwarmManager:
             # print(
             #     f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
 
-            # Get the next task to perform from the strategy.
-            should_continue, next_task = self.strategy.next_task(
-                tello, data, self.tellos)
-
             if not tello.started:
                 tello.started = True
                 tello.on_msg_received = self.loop.create_future()
@@ -149,33 +145,37 @@ class SwarmManager:
                 tello.label = label
                 self.control_protocol.send_command(
                     f'EXT mled s r {label}', tello)
-
-            elif should_continue and not tello.finished:
-                if next_task is None:
-                    raise RuntimeError(
-                        "No action was provided despite continuing")
-                # print(
-                #     f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
-                tello.stop_sent = False
-                tello.on_msg_received = self.loop.create_future()
-                tello.on_msg_received.add_done_callback(
-                    functools.partial(self.msg_received_callback, tello)
-                )
-                self.control_protocol.send_command(next_task, tello)
             else:
-                # We're done for this drone.
-                print(
-                    f"[SwarmManager] Tasking complete for drone {tello.ip}, landing")
-                tello.on_msg_received = self.loop.create_future()
-                tello.on_msg_received.add_done_callback(
-                    functools.partial(self.msg_received_callback, tello)
-                )
-                self.control_protocol.send_command('land', tello)
-                tello.finished = True
+                # Get the next task to perform from the strategy.
+                should_continue, next_task = self.strategy.next_task(
+                    tello, data, self.tellos)
 
-                # If we're done for all drones, close the socket.
-                if (all(tello.finished for tello in self.tellos)):
-                    self.control_transport.close()
+                if should_continue and not tello.finished:
+                    if next_task is None:
+                        raise RuntimeError(
+                            "No action was provided despite continuing")
+                    # print(
+                    #     f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
+                    tello.stop_sent = False
+                    tello.on_msg_received = self.loop.create_future()
+                    tello.on_msg_received.add_done_callback(
+                        functools.partial(self.msg_received_callback, tello)
+                    )
+                    self.control_protocol.send_command(next_task, tello)
+                else:
+                    # We're done for this drone.
+                    print(
+                        f"[SwarmManager] Tasking complete for drone {tello.ip}, landing")
+                    tello.on_msg_received = self.loop.create_future()
+                    tello.on_msg_received.add_done_callback(
+                        functools.partial(self.msg_received_callback, tello)
+                    )
+                    self.control_protocol.send_command('land', tello)
+                    tello.finished = True
+
+                    # If we're done for all drones, close the socket.
+                    if (all(tello.finished for tello in self.tellos)):
+                        self.control_transport.close()
 
 
 class SwarmTask(object):
