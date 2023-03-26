@@ -107,17 +107,18 @@ class SwarmManager:
         :param received_future: To be filled in by `add_done_callback`.
         """
         data = received_future.result()
-        print(f"[SwarmManager] Received {data} from {tello.ip}")
+        # print(f"[SwarmManager] Received {data} from {tello.ip}")
         if b'error' in data:
-            print(f"[SwarmManager] Received error from drone {tello.ip}")
+            print(
+                f"[SwarmManager] Received error from drone {tello.label} {tello.ip}")
             should_continue, next_task = False, None
             # just stop doing anything with this one
             tello.finished = True
         elif b'ok' in data:
-            print(f"[SwarmManager] Received ok from drone {tello.ip}")
+            # print(f"[SwarmManager] Received ok from drone {tello.ip}")
 
-            print(
-                f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
+            # print(
+            #     f"[SwarmManager] Drone {tello.ip} detects mission pad {tello.detected_marker}")
 
             # Get the next task to perform from the strategy.
             should_continue, next_task = self.strategy.next_task(
@@ -139,13 +140,13 @@ class SwarmManager:
                 )
                 self.control_protocol.send_command('mon', tello)
 
-            elif not tello.labelled:
-                tello.labelled = True
+            elif tello.label == '':
                 tello.on_msg_received = self.loop.create_future()
                 tello.on_msg_received.add_done_callback(
                     functools.partial(self.msg_received_callback, tello)
                 )
                 label = chr(97 + self.tellos.index(tello))
+                tello.label = label
                 self.control_protocol.send_command(
                     f'EXT mled s r {label}', tello)
 
@@ -153,8 +154,8 @@ class SwarmManager:
                 if next_task is None:
                     raise RuntimeError(
                         "No action was provided despite continuing")
-                print(
-                    f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
+                # print(
+                #     f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
                 tello.stop_sent = False
                 tello.on_msg_received = self.loop.create_future()
                 tello.on_msg_received.add_done_callback(

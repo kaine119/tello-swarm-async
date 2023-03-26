@@ -11,13 +11,14 @@ class TelloUnit:
         self.on_msg_received: Future | None = None
         self.started = False
         self.camera_activated = False
-        self.labelled = False
+        self.label = ''
         self.finished = False
         self.detected_marker: int | None = None
         self.marker_xy: Tuple[int, int] | None = None
         self.marker_yaw: int | None = None
         self.height: int = 0
         self.stop_sent: bool = False
+        self.landing: bool = False
 
 
 class TelloControlProtocol(asyncio.DatagramProtocol):

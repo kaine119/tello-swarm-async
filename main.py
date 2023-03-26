@@ -1,39 +1,15 @@
 import asyncio
 from strategies import *
-from arp import arp_scan
+from arp import arp_scan, ping_ips
 
 from swarm import SwarmManager
 
-# Last 3 bytes of the MAC address of each Tello.
-# Identified by the SSID printed on the
-# back of the head unit (RMTT-______)
-# Separate every 2 characters with a colon.
-macs = [
-    "f2:43:0e"
-]
-
-
-def ping_ips():
-    clients = arp_scan()
-    ips = []
-    print(clients)
-    for mac in macs:
-        mac = mac.lower()
-        if clients.get(mac) is None:
-            print("MAC address not found:", mac)
-            ips.append("192.168.51.1")
-        else:
-            ips.append(clients[mac])
-    print(ips)
-    return ips
-
-
 path_pads = [1, 3]
 end_pads = [5, 6, 7, 8]
-distance = 100
+distance = 200
 flight_1 = 50
 flight_2 = 50
-speed = 50
+speed = 20
 
 
 async def main():

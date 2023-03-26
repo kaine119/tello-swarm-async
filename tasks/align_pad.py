@@ -22,10 +22,13 @@ class AlignPadTask(SwarmTask):
 
     def align_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str]:
         if abs(tello.marker_yaw) >= 10:
-            print(
-                f"[AlignPadTask] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
+            # print(
+            #     f"[AlignPadTask] [{tello.ip}] Aligning yaw to path pad; current yaw {tello.marker_yaw}")
             return self.align_yaw(tello)
         else:
+            if not (tello.detected_marker in self.path_pad_nos):
+                print(
+                    f"[AlignPadTask] Fatal error: Aligning to pad {tello.detected_marker} not within path numbers")
             return (
                 True,
                 f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{tello.detected_marker}'
@@ -34,6 +37,7 @@ class AlignPadTask(SwarmTask):
     def align_end_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str | None]:
         marker_x, marker_y = tello.marker_xy
         if abs(marker_x) <= 10 and abs(marker_y) <= 10:
+            tello.landing = True
             print(
                 f"[AlignPadTask] [{tello.ip}] Successfully aligned to landing pad; current rel coordinates {tello.marker_xy}")
             return False, None
