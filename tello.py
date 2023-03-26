@@ -17,6 +17,7 @@ class TelloUnit:
         self.marker_xy: Tuple[int, int] | None = None
         self.marker_yaw: int | None = None
         self.height: int = 0
+        self.stop_sent: bool = False
 
 
 class TelloControlProtocol(asyncio.DatagramProtocol):
@@ -61,7 +62,7 @@ class TelloControlProtocol(asyncio.DatagramProtocol):
         super().datagram_received(data, addr)
 
         # Idunno what this is, just ignore the packet
-        if b'keepalive' in data:
+        if b'keepalive' in data or b'forced stop' in data:
             return
 
         # Lookup the future for the tello that sent this packet,

@@ -6,8 +6,8 @@ from swarm import *
 
 class FollowToEndPad(SwarmStrategy):
     def __init__(self,
-                 path_pad_no: int,
-                 end_pad_no: int,
+                 path_pad_nos: List[int],
+                 end_pad_nos: List[int],
                  distance_between_pads: int,
                  flight_level_1: int,
                  flight_level_2: int,
@@ -15,22 +15,23 @@ class FollowToEndPad(SwarmStrategy):
         """
         Instruct drones in a swarm to follow a path of mission pads, landing when
         a particular pad number is seen.
-        :param path_pad_no: The number on the mission pads along the path.
-        :param end_pad_no: The number of the mission pad that ends the path; the drone will land
+        :param path_pad_nos: The list of numbers on the mission pads along the path.
+        :param end_pad_nos: The list of numbers of the mission pad that ends the path; the drone will land
         upon seeing this path.
         :param distance_between_pads: How far forward to fly per pad.
         :param altitude: The altitude that the drone flies at.
         :param speed: How fast the drones fly per pad.
         """
-        self.path_pad_no = path_pad_no
-        self.end_pad_no = end_pad_no
+        self.path_pad_nos = path_pad_nos
+        self.end_pad_nos = end_pad_nos
         self.distance_between_pads = distance_between_pads
         self.flight_level_1 = flight_level_1
         self.flight_level_2 = flight_level_2
         self.speed = speed
 
         self.pad_finder = find_pad.FindPadTask()
-        self.pad_align = align_pad.AlignPadTask(speed, distance_between_pads, path_pad_no, end_pad_no)
+        self.pad_align = align_pad.AlignPadTask(
+            speed, distance_between_pads, path_pad_nos, end_pad_nos)
 
     def next_task(self,
                   tello: TelloUnit,
@@ -60,7 +61,7 @@ class FollowToEndPad(SwarmStrategy):
             return self.pad_align.align_end_pad(tello, altitude)
 
     def on_tello_updated(self, tello: TelloUnit) -> bool:
-        print(tello.detected_marker)
+        # print(tello.detected_marker)
         if tello.detected_marker == self.end_pad_no:
             return True
         return False

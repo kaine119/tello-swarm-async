@@ -5,12 +5,12 @@ class AlignPadTask(SwarmTask):
     def __init__(self,
                  speed: int,
                  distance_between_pads: int,
-                 path_pad_no: int,
-                 end_pad_no: int) -> None:
+                 path_pad_nos: List[int],
+                 end_pad_nos: List[int]) -> None:
         self.speed = speed
         self.distance_between_pads = distance_between_pads
-        self.path_pad_no = path_pad_no
-        self.end_pad_no = end_pad_no
+        self.path_pad_nos = path_pad_nos
+        self.end_pad_nos = end_pad_nos
         super().__init__()
 
     def align_yaw(self, tello: TelloUnit) -> Tuple[bool, str]:
@@ -28,7 +28,7 @@ class AlignPadTask(SwarmTask):
         else:
             return (
                 True,
-                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{self.path_pad_no}'
+                f'go {self.distance_between_pads} 0 {altitude} {self.speed} m{tello.detected_marker}'
             )
 
     def align_end_pad(self, tello: TelloUnit, altitude: int) -> Tuple[bool, str | None]:
@@ -42,5 +42,5 @@ class AlignPadTask(SwarmTask):
                 f"[AlignPadTask] [{tello.ip}] Aligning to landing pad; current rel coordinates {tello.marker_xy}")
             return (
                 True,
-                f'go 0 0 {altitude} {self.speed} m{self.end_pad_no}'
+                f'go 0 0 {altitude} {self.speed} m{tello.detected_marker}'
             )

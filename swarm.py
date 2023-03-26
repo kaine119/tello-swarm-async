@@ -75,7 +75,8 @@ class SwarmManager:
         )
 
         self.status_transport, self.status_protocol = await self.loop.create_datagram_endpoint(
-            lambda: TelloStatusProtocol(self.tellos, self.tello_update_callback),
+            lambda: TelloStatusProtocol(
+                self.tellos, self.tello_update_callback),
             local_addr=('0.0.0.0', TelloStatusProtocol.STATUS_PORT)
         )
 
@@ -84,8 +85,9 @@ class SwarmManager:
 
     def tello_update_callback(self, tello_updated: TelloUnit):
         need_to_stop = self.strategy.on_tello_updated(tello_updated)
-        if need_to_stop:
+        if need_to_stop and not tello_updated.stop_sent:
             self.control_protocol.send_command('stop', tello_updated)
+            tello_updated.stop_sent = True
 
     def msg_received_callback(self, tello: TelloUnit, received_future: Future):
         """
@@ -153,6 +155,7 @@ class SwarmManager:
                         "No action was provided despite continuing")
                 print(
                     f"[SwarmManager] Sending command '{next_task}' to drone {tello.ip}")
+                tello.stop_sent = False
                 tello.on_msg_received = self.loop.create_future()
                 tello.on_msg_received.add_done_callback(
                     functools.partial(self.msg_received_callback, tello)

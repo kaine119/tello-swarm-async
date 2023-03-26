@@ -9,7 +9,7 @@ from swarm import SwarmManager
 # back of the head unit (RMTT-______)
 # Separate every 2 characters with a colon.
 macs = [
-    "10:b4:3A"
+    "f2:43:0e"
 ]
 
 
@@ -28,9 +28,18 @@ def ping_ips():
     return ips
 
 
+path_pads = [1, 3]
+end_pads = [5, 6, 7, 8]
+distance = 100
+flight_1 = 50
+flight_2 = 50
+speed = 50
+
+
 async def main():
     loop = asyncio.get_running_loop()
-    strategy = follow_to_end.FollowToEndPad(1, 5, 400, 50, 150, 50)
+    strategy = follow_to_end.FollowToEndPad(
+        path_pads, end_pads, distance, flight_1, flight_2, speed)
     ips = ping_ips()
 
     manager = SwarmManager(loop, ips, strategy)
