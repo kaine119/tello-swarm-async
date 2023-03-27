@@ -27,7 +27,8 @@ macs = [
 
 def ping_ips():
     clients = arp_scan()
-    ips = []
+    # ips = []
+    ips = {}
     num = 0
     print(clients)
     for mac in macs:
@@ -35,9 +36,11 @@ def ping_ips():
         if clients.get(mac) is None:
             num += 1
             print("MAC address not found:", mac)
-            ips.append("192.168.51.1")
+            # ips.append("192.168.51.1")
+            ips[mac] = "192.168.51.1"
         else:
-            ips.append(clients[mac])
+            # ips.append(clients[mac])
+            ips[mac] = clients[mac]
     print(f"{num} drones not found")
     return ips
 

@@ -39,7 +39,7 @@ class SwarmStrategy(object):
 class SwarmManager:
     def __init__(self,
                  loop: AbstractEventLoop,
-                 tello_ips: List[str],
+                 tello_ips: Dict[str],
                  strategy: SwarmStrategy) -> None:
         """
         Manages multiple TelloUnits. It keeps track of multiple tasking lists, and sends commands
@@ -50,7 +50,8 @@ class SwarmManager:
         """
         self.loop = loop
 
-        self.tellos = [TelloUnit(ip) for ip in tello_ips]
+        # self.tellos = [TelloUnit(ip) for ip in tello_ips]
+        self.tellos = [TelloUnit(ip) for ip in list(tello_ips.values())]
 
         self.on_con_lost = loop.create_future()
 
